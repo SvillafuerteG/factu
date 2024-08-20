@@ -1,11 +1,14 @@
-const fs = require('fs-extra');
-const PDFDocument = require('pdfkit');
-const xmlbuilder = require('xmlbuilder');
-const path = require('path');
-const mongoose = require('mongoose');
+const Counter = require('../models/counter'); // Ajusta la ruta según sea necesario
 
-// Asume que tienes un modelo Cliente definido en Mongoose
-const Cliente = require('../models/cliente'); // Ajusta la ruta según sea necesario
+// Función para obtener el siguiente número de factura
+const getNextFacturaNumber = async () => {
+    const counter = await Counter.findOneAndUpdate(
+        { key: 'factura' },
+        { $inc: { seq: 1 } },
+        { new: true, upsert: true }
+    );
+    return counter.seq;
+};
 
 const generateXML = async (factura) => {
     try {
@@ -15,7 +18,10 @@ const generateXML = async (factura) => {
             throw new Error('Cliente no encontrado en la base de datos');
         }
 
+        const numeroFactura = await getNextFacturaNumber();
+
         const xml = xmlbuilder.create('Factura')
+            .ele('NumeroFactura', numeroFactura)
             .ele('Cliente')
                 .ele('CodigoPais', cliente.pais || 'Desconocido').up()
                 .ele('Correo', cliente.correo || 'Desconocido').up()
@@ -44,8 +50,6 @@ const generateXML = async (factura) => {
     }
 };
 
-
-
 const generatePDF = async (factura) => {
     return new Promise(async (resolve, reject) => {
         try {
@@ -55,6 +59,8 @@ const generatePDF = async (factura) => {
                 return reject(new Error('Cliente no encontrado en la base de datos'));
             }
 
+            const numeroFactura = await getNextFacturaNumber();
+
             const doc = new PDFDocument({ margin: 50 });
             const chunks = [];
             doc.on('data', chunk => chunks.push(chunk));
@@ -63,9 +69,8 @@ const generatePDF = async (factura) => {
 
             doc.font('Times-Roman');
 
-            doc.fontSize(15).text('Factura', { align: 'left' });
+            doc.fontSize(15).text(`Factura No. ${numeroFactura}`, { align: 'left' });
 
-            // Decodifica el logo si está presente y es una cadena
             if (cliente.logo && typeof cliente.logo === 'string') {
                 try {
                     const logoBuffer = Buffer.from(cliente.logo, 'base64');
@@ -78,8 +83,6 @@ const generatePDF = async (factura) => {
             }
 
             doc.moveDown().fontSize(12);
-
-            // Nombre Comercial y Correo Electrónico espaciados
             doc.text(`Nombre Comercial: ${cliente.nombreEmpresa || 'Desconocido'}`);
             doc.text(`Correo electrónico: ${cliente.CorreoEmpresa || 'Desconocido'}`);
 
@@ -88,7 +91,6 @@ const generatePDF = async (factura) => {
             doc.moveDown().fontSize(15).text('Detalles:', { underline: true });
             doc.moveDown().fontSize(12);
 
-            // Alineación de los detalles al lado izquierdo
             factura.detalles.forEach((detalle, index) => {
                 doc.text(`Item ${index + 1}: ${detalle.nombreProducto || 'Desconocido'}`);
                 doc.text(`Cantidad: ${detalle.cantidad || '0'}`);
@@ -97,12 +99,9 @@ const generatePDF = async (factura) => {
                 doc.moveDown(1);
             });
 
-            doc.moveDown(2); // Espacio antes del total
-
-            // Añadir el total al final, alineado a la izquierda
+            doc.moveDown(2);
             doc.fontSize(15).text(`Total Venta: ${factura.totalVenta || '0.00'}`, { align: 'left' });
 
-            // Finaliza el documento correctamente
             doc.end();
         } catch (error) {
             console.error('Error generating PDF:', error);
@@ -111,43 +110,21 @@ const generatePDF = async (factura) => {
     });
 };
 
-
-
-
-const axios = require('axios');
-
-/*const requestTributacionAPI = async (xml) => {
-    try {
-        const response = await axios.post('URL_DE_LA_API_DE_TRIBUTACION', xml, {
-            headers: {
-                'Content-Type': 'application/xml'
-            }
-        });
-
-        const xmlRespuesta = response.data;
-        return xmlRespuesta;
-    } catch (error) {
-        console.error('Error requesting Tributacion API:', error);
-        throw error;
-    }
-};*/
 const handleRequest = async (req, res) => {
     try {
         const factura = req.body;
 
         const xml = await generateXML(factura);
         const pdf = await generatePDF(factura);
-        // const xmlRespuesta = await requestTributacionAPI(xml);
 
-        res.setHeader('Content-Disposition', 'attachment; filename="factura.zip"');
+        res.setHeader('Content-Disposition', `attachment; filename="factura_${factura.numeroFactura}.zip"`);
         res.setHeader('Content-Type', 'application/zip');
 
         const zip = require('archiver')('zip');
         zip.pipe(res);
 
-        zip.append(Buffer.from(xml, 'utf8'), { name: 'factura.xml' });
-        // zip.append(Buffer.from(xmlRespuesta, 'utf8'), { name: 'respuesta.xml' });
-        zip.append(pdf, { name: 'factura.pdf' });
+        zip.append(Buffer.from(xml, 'utf8'), { name: `factura_${factura.numeroFactura}.xml` });
+        zip.append(pdf, { name: `factura_${factura.numeroFactura}.pdf` });
 
         zip.finalize();
     } catch (error) {
@@ -155,8 +132,4 @@ const handleRequest = async (req, res) => {
     }
 };
 
-
-
-
-module.exports = { generateXML, generatePDF, /*requestTributacionAPI*/ handleRequest };
-
+module.exports = { generateXML, generatePDF, handleRequest };
