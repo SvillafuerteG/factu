@@ -4,13 +4,14 @@ const fs = require('fs-extra');
 const path = require('path');
 const { Cliente, Factura } = require('../models');
 const { generateXML, generatePDF, requestTributacionAPI } = require('../fileGenerators/file');
+const archiver = require('archiver');
 
 router.post('/', async (req, res) => {
     try {
         const clienteNombre = req.body.cliente;
 
         if (!clienteNombre) {
-            return res.status(400).send({ error: 'clienten no proporcionado en el cuerpo de la solicitud.' });
+            return res.status(400).send({ error: 'Cliente no proporcionado en el cuerpo de la solicitud.' });
         }
 
         const cliente = await Cliente.findOne({ nombreEmpresa: new RegExp('^' + clienteNombre + '$', 'i') });
@@ -19,10 +20,6 @@ router.post('/', async (req, res) => {
             return res.status(404).send({ error: 'Cliente no encontrado. No se puede crear la factura.' });
         }
 
-        // Resto de tu lógica...
-    
-
-
         // Crear una nueva factura
         const factura = new Factura(req.body);
         await factura.save();
@@ -30,19 +27,20 @@ router.post('/', async (req, res) => {
         // Generar XML y PDF
         const xml = await generateXML(req.body);
         const pdf = await generatePDF(req.body);
-        /*const xmlRespuesta = await requestTributacionAPI(xml);*/ 
+        const xmlRespuesta = await requestTributacionAPI(xml);
 
         // Enviar la respuesta como un archivo ZIP
-        res.setHeader('Content-Disposition', 'attachment; filename="factura.zip"');
+        const zip = archiver('zip');
+        res.setHeader('Content-Disposition', `attachment; filename="factura_${factura.numero}.zip"`);
         res.setHeader('Content-Type', 'application/zip');
 
-        const zip = require('archiver')('zip');
         zip.pipe(res);
 
-        zip.append(Buffer.from(xml, 'utf8'), { name: `factura_${factura._id}.xml` });
-      /*  zip.append(Buffer.from(xmlRespuesta, 'utf8'), { name: `respuesta_${factura._id}.xml` });*/
-        zip.append(pdf, { name: `factura_${factura._id}.pdf` });
+        // Agregar archivos al ZIP
+        zip.append(Buffer.from(xml, 'utf8'), { name: `factura_${factura.numero}.xml` });
+        zip.append(pdf, { name: `factura_${factura.numero}.pdf` });
 
+        // Finalizar el ZIP
         zip.finalize();
     } catch (error) {
         console.error('Error en la creación de la factura:', error);

@@ -112,6 +112,23 @@ const generatePDF = async (factura) => {
         }
     });
 };
+const axios = require('axios');
+
+const requestTributacionAPI = async (xml) => {
+    try {
+        const response = await axios.post('URL_DE_LA_API_DE_TRIBUTACION', xml, {
+            headers: {
+                'Content-Type': 'application/xml'
+            }
+        });
+
+        const xmlRespuesta = response.data;
+        return xmlRespuesta;
+    } catch (error) {
+        console.error('Error requesting Tributacion API:', error);
+        throw error;
+    }
+};
 
 const handleRequest = async (req, res) => {
     try {
@@ -135,4 +152,4 @@ const handleRequest = async (req, res) => {
     }
 };
 
-module.exports = { generateXML, generatePDF, handleRequest };
+module.exports = { generateXML, generatePDF, requestTributacionAPI , handleRequest };
