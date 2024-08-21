@@ -12,12 +12,9 @@ app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
 // Conectar a la base de datos
-mongoose.connect('mongodb://localhost:27017/facturaDB', {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
-})
-.then(() => console.log('Connected to MongoDB'))
-.catch(err => console.error('MongoDB connection error:', err));
+mongoose.connect('mongodb://localhost:27017/facturaDB')
+  .then(() => console.log('Connected to MongoDB'))
+  .catch(err => console.error('MongoDB connection error:', err));
 
 // Configurar las rutas
 app.use('/cliente', clienteRouter);
@@ -33,3 +30,4 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
 });
+

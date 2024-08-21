@@ -1,4 +1,7 @@
-const Counter = require('../models/counter'); // Ajusta la ruta según sea necesario
+const Counter = require('../models/counter'); // Asegúrate de que la ruta sea correcta
+const Cliente = require('../models/cliente');
+const xmlbuilder = require('xmlbuilder'); // Asegúrate de haber instalado xmlbuilder: npm install xmlbuilder
+const PDFDocument = require('pdfkit'); // Asegúrate de haber instalado pdfkit: npm install pdfkit
 
 // Función para obtener el siguiente número de factura
 const getNextFacturaNumber = async () => {
